@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
+/** API REST para administrar colas, exchanges y bindings de RabbitMQ. */
 @RestController
 @RequestMapping("/api/admin")
 public class RabbitAdminController {
@@ -27,6 +28,8 @@ public class RabbitAdminController {
     public RabbitAdminController(RabbitAdminService rabbitAdminService) {
         this.rabbitAdminService = rabbitAdminService;
     }
+
+    // ========== COLAS ==========
 
     @GetMapping("/queues")
     public List<Map<String, Object>> listQueues() {
@@ -46,6 +49,8 @@ public class RabbitAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    // ========== EXCHANGES ==========
+
     @GetMapping("/exchanges")
     public List<Map<String, Object>> listExchanges() {
         return rabbitAdminService.listExchanges();
@@ -63,6 +68,8 @@ public class RabbitAdminController {
         rabbitAdminService.deleteExchange(name);
         return ResponseEntity.noContent().build();
     }
+
+    // ========== BINDINGS ==========
 
     @PostMapping("/bindings")
     public ResponseEntity<Map<String, Object>> createBinding(@Valid @RequestBody BindingRequest request) {

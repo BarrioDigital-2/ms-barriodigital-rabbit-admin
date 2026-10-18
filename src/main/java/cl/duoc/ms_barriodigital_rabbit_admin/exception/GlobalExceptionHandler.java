@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Traduce los errores a respuestas HTTP claras en vez de un 500 generico. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -44,16 +45,19 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    /** JSON mal formado o tipo de exchange invalido (ej. "type": "OTRO"). */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> bodyInvalido(HttpMessageNotReadableException e) {
         return error(HttpStatus.BAD_REQUEST, "Body invalido. Revisa el JSON y que type sea DIRECT, TOPIC o FANOUT");
     }
 
+    /** RabbitMQ rechazo la operacion (ej. redeclarar una cola con otros argumentos). */
     @ExceptionHandler(AmqpException.class)
     public ResponseEntity<Map<String, Object>> errorRabbit(AmqpException e) {
         return error(HttpStatus.CONFLICT, "RabbitMQ rechazo la operacion: " + causaRaiz(e).getMessage());
     }
 
+    /** No se pudo consultar la API de management (caida o credenciales incorrectas). */
     @ExceptionHandler(RestClientException.class)
     public ResponseEntity<Map<String, Object>> errorManagement(RestClientException e) {
         return error(HttpStatus.BAD_GATEWAY, "No se pudo consultar la API de management de RabbitMQ");

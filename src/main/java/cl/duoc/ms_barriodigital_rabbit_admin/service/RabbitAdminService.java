@@ -20,9 +20,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Encapsula las operaciones de administracion de RabbitMQ.
+ * - Crear / borrar: RabbitAdmin (AMQP).
+ * - Listar: API HTTP de management (RabbitAdmin no tiene metodo para listar).
+ * El controller solo llama a estos metodos de alto nivel y no conoce detalles de RabbitMQ.
+ */
 @Service
 public class RabbitAdminService {
 
+    /** Prefijo reservado por RabbitMQ para sus exchanges internos (amq.direct, amq.topic...). */
     private static final String PREFIJO_RESERVADO = "amq.";
 
     private final RabbitAdmin rabbitAdmin;
@@ -32,6 +39,8 @@ public class RabbitAdminService {
         this.rabbitAdmin = rabbitAdmin;
         this.managementClient = managementRestClient;
     }
+
+    // ========== COLAS ==========
 
     public List<Map<String, Object>> listQueues() {
         return consultarManagement("/queues").stream()
@@ -45,15 +54,18 @@ public class RabbitAdminService {
     }
 
     public void deleteQueue(String name) {
+        // getQueueProperties devuelve null si la cola no existe
         if (rabbitAdmin.getQueueProperties(name) == null) {
             throw new RecursoNoEncontradoException("La cola '" + name + "' no existe");
         }
         rabbitAdmin.deleteQueue(name);
     }
 
+    // ========== EXCHANGES ==========
+
     public List<Map<String, Object>> listExchanges() {
         return consultarManagement("/exchanges").stream()
-                .filter(exchange -> !"".equals(exchange.get("name")))
+                .filter(exchange -> !"".equals(exchange.get("name"))) // el exchange por defecto no tiene nombre
                 .map(exchange -> resumen(exchange, "name", "type", "durable", "auto_delete", "internal"))
                 .toList();
     }
@@ -78,6 +90,8 @@ public class RabbitAdminService {
         rabbitAdmin.deleteExchange(name);
     }
 
+    // ========== BINDINGS ==========
+
     public void createBinding(BindingRequest request) {
         validarNombre(request.getQueue(), "cola");
         validarNombre(request.getExchange(), "exchange");
@@ -86,11 +100,15 @@ public class RabbitAdminService {
         }
         verificarExchangeExiste(request.getExchange());
 
+        // Binding generico: sirve para Direct, Topic y Fanout (en Fanout la routing key se ignora)
         String routingKey = request.getRoutingKey() == null ? "" : request.getRoutingKey();
         rabbitAdmin.declareBinding(
                 new Binding(request.getQueue(), Binding.DestinationType.QUEUE, request.getExchange(), routingKey, null));
     }
 
+    // ========== HELPERS ==========
+
+    /** GET a la API de management. Se lee como Map porque solo se usan algunos campos de la respuesta. */
     private List<Map<String, Object>> consultarManagement(String ruta) {
         List<Map<String, Object>> respuesta = managementClient.get()
                 .uri(ruta)
@@ -99,6 +117,10 @@ public class RabbitAdminService {
         return respuesta == null ? List.of() : respuesta;
     }
 
+    /**
+     * RabbitAdmin no expone si un exchange existe; se consulta en la API de management (404 = no existe).
+     * El vhost por defecto "/" se pasa como variable para que el RestClient lo codifique como %2F.
+     */
     private void verificarExchangeExiste(String name) {
         try {
             managementClient.get()
@@ -110,6 +132,10 @@ public class RabbitAdminService {
         }
     }
 
+    /**
+     * Segunda capa de validacion: los body de los POST ya se validan con anotaciones en los DTO,
+     * pero los DELETE reciben el nombre por la URL y se validan aqui.
+     */
     private void validarNombre(String name, String recurso) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("El nombre de la " + recurso + " es obligatorio");
@@ -119,6 +145,7 @@ public class RabbitAdminService {
         }
     }
 
+    /** Copia solo los campos indicados, para no devolver la respuesta completa (y enorme) de management. */
     private Map<String, Object> resumen(Map<String, Object> origen, String... campos) {
         Map<String, Object> resumen = new LinkedHashMap<>();
         for (String campo : campos) {
