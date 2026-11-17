@@ -20,7 +20,7 @@ import java.util.Map;
 
 /** API REST para administrar colas, exchanges y bindings de RabbitMQ. */
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/api/v1/admin")
 public class RabbitAdminController {
 
     private final RabbitAdminService rabbitAdminService;
